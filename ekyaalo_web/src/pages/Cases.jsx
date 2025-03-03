@@ -1,33 +1,21 @@
-import { useState } from "react";
+// src/pages/Cases.jsx
+import { useSelector, useDispatch } from "react-redux";
 import { Link } from "react-router-dom";
-import cases from "../data/cases"; // Adjust path as needed
+import { toggleReviewed, setSearchTerm } from "../redux/casesSlice";
+import { selectCases } from "../redux/casesSlice";
 
 function Cases() {
-  const [caseData, setCaseData] = useState(cases);
-  const [searchTerm, setSearchTerm] = useState("");
+  const dispatch = useDispatch();
+  const sortedCases = useSelector(selectCases);
+  const searchTerm = useSelector((state) => state.cases.searchTerm);
 
-  const toggleReviewed = (id) => {
-    setCaseData(
-      caseData.map((c) => (c.id === id ? { ...c, reviewed: !c.reviewed } : c))
-    );
+  const handleToggleReviewed = (id) => {
+    dispatch(toggleReviewed(id));
   };
 
-  // Filter cases by search term (patient name or ID)
-  const filteredCases = caseData.filter((caseItem) => {
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      caseItem.patient.name.toLowerCase().includes(searchLower) ||
-      caseItem.id.toString().includes(searchLower)
-    );
-  });
-
-  // Sort filtered cases: unreviewed first (oldest to newest), then reviewed (oldest to newest)
-  const sortedCases = [...filteredCases].sort((a, b) => {
-    if (a.reviewed === b.reviewed) {
-      return new Date(a.date) - new Date(b.date); // Oldest first
-    }
-    return a.reviewed ? 1 : -1; // Reviewed at bottom
-  });
+  const handleSearchChange = (e) => {
+    dispatch(setSearchTerm(e.target.value));
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
@@ -40,7 +28,7 @@ function Cases() {
           <input
             type="text"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearchChange}
             placeholder="Search by patient name or ID..."
             className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -84,7 +72,7 @@ function Cases() {
                     <button
                       onClick={(e) => {
                         e.preventDefault();
-                        toggleReviewed(caseItem.id);
+                        handleToggleReviewed(caseItem.id);
                       }}
                       className="text-sm px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-all"
                     >

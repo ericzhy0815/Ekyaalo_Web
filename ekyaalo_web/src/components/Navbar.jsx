@@ -17,7 +17,7 @@ function Navbar() {
             to="/"
             className="text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 transition-all"
           >
-            Case Manager
+            Ekyaalo
           </Link>
 
           {/* Desktop Menu */}
