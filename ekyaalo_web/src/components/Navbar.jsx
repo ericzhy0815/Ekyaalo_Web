@@ -29,12 +29,6 @@ function Navbar() {
               Sign In
             </Link>
             <Link
-              to="/signup"
-              className="text-lg font-medium px-3 py-2 rounded-md hover:bg-gray-700 hover:text-blue-300 transition-all duration-300"
-            >
-              Sign Up
-            </Link>
-            <Link
               to="/cases"
               className="text-lg font-medium px-3 py-2 rounded-md hover:bg-gray-700 hover:text-blue-300 transition-all duration-300"
             >
@@ -84,13 +78,6 @@ function Navbar() {
               onClick={toggleMenu}
             >
               Sign In
-            </Link>
-            <Link
-              to="/signup"
-              className="block px-3 py-2 text-base font-medium text-white hover:bg-gray-700 hover:text-blue-300 rounded-md transition-all duration-300"
-              onClick={toggleMenu}
-            >
-              Sign Up
             </Link>
             <Link
               to="/cases"

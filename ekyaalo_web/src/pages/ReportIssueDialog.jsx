@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 
-function ReportIssueDialog({ caseItem, onClose }) {
+function ReportIssueDialog({ caseItem, onClose, onSubmit }) {
+  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [selectedImages, setSelectedImages] = useState([]);
   const [showImageDropdown, setShowImageDropdown] = useState(false);
@@ -17,7 +18,6 @@ function ReportIssueDialog({ caseItem, onClose }) {
   const handleDescriptionChange = (e) => {
     const value = e.target.value;
     setDescription(value);
-    // Show dropdown if last character is '#'
     if (value.endsWith("#")) {
       setShowImageDropdown(true);
     } else if (showImageDropdown && !value.includes("#")) {
@@ -33,6 +33,10 @@ function ReportIssueDialog({ caseItem, onClose }) {
     const newText = `${textBefore}#${imageId}${textAfter}`;
     setDescription(newText);
     setShowImageDropdown(false);
+    // Add imageId to selectedImages if not already present
+    setSelectedImages((prev) =>
+      prev.includes(imageId) ? prev : [...prev, imageId]
+    );
     textarea.focus();
   };
 
@@ -40,13 +44,19 @@ function ReportIssueDialog({ caseItem, onClose }) {
     e.preventDefault();
     const report = {
       caseId: caseItem.id,
-      description,
+      title: title || "Untitled Issue",
+      description: description,
       imageLinks: selectedImages.map(
         (id) => caseItem.images.find((img) => img.id === id).url
       ),
     };
-    console.log("Reported Issue:", report); // Replace with actual submission logic
-    onClose(); // Close dialog after submission
+    onSubmit(report);
+    // Reset form after submission
+    setTitle("");
+    setDescription("");
+    setSelectedImages([]);
+    setShowImageDropdown(false);
+    onClose();
   };
 
   return (
@@ -66,6 +76,21 @@ function ReportIssueDialog({ caseItem, onClose }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Title */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Title
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              placeholder="Enter issue title..."
+              className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
           {/* Description */}
           <div className="relative">
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -131,9 +156,9 @@ function ReportIssueDialog({ caseItem, onClose }) {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-all"
+              className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-all"
             >
-              Submit Report
+              Open Issue
             </button>
           </div>
         </form>
