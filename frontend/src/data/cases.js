@@ -401,16 +401,16 @@ const cases = [
     issues: [
       {
         id: 1,
-        title: "Second Opinion Requested",
+        title: "Problem with image display",
         description:
-          "Suspicious findings in Image #1 are uncertain and could indicate early malignancy. A second pathologist’s opinion is needed for confirmation.",
+          "Image #1 shows suspicious findings, but the display quality is poor. Please upload a clearer image for further review.",
         status: "Open",
         createdBy: "Dr. Nguyen",
         createdAt: "2025-02-21T12:35:00Z",
         comments: [
           {
             author: "Dr. Nguyen",
-            text: "Suspicious findings, need another pathologist’s input.",
+            text: "Please submit image of the same slide.",
             timestamp: "2025-02-21T12:35:00Z",
           },
         ],

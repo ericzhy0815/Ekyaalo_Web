@@ -133,7 +133,7 @@ function IssuesTab({ issues: initialIssues, onOpenIssueDialog }) {
                       : "bg-red-500 hover:bg-red-600"
                   } transition-all`}
                 >
-                  {issue.status === "Open" ? "Resolved" : "Reopen Issue"}
+                  {issue.status === "Open" ? "Close Issue" : "Reopen Issue"}
                 </button>
               </div>
               <p
