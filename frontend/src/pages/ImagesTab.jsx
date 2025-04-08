@@ -2,17 +2,30 @@ import { useState } from "react";
 
 function ImagesTab({ caseItem, onImageClick }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Flatten all images from issues into a single array
+  const allImages = caseItem.issues.flatMap((issue) =>
+    issue.images.flatMap((slide) =>
+      slide.imagelist.map((pair) => ({
+        url: pair.first.image, // Use 'first' image as primary (could also use 'second')
+        tag: pair.first.type, // Use 'type' as tag (Positive/Negative)
+        comments: [], // Initialize empty comments (not in schema, managed locally)
+      }))
+    )
+  );
+
   const [comments, setComments] = useState(
-    caseItem.images.map((img) => img.comments)
+    allImages.length > 0 ? allImages.map(() => []) : []
   );
   const [subcommentText, setSubcommentText] = useState({});
 
   const handleNextImage = () =>
-    setCurrentImageIndex((prev) => (prev + 1) % caseItem.images.length);
+    setCurrentImageIndex((prev) => (prev + 1) % allImages.length);
   const handlePrevImage = () =>
     setCurrentImageIndex((prev) =>
-      prev === 0 ? caseItem.images.length - 1 : prev - 1
+      prev === 0 ? allImages.length - 1 : prev - 1
     );
+
   const handleCommentSubmit = (e) => {
     e.preventDefault();
     const commentText = e.target.comment.value;
@@ -31,6 +44,7 @@ function ImagesTab({ caseItem, onImageClick }) {
       e.target.reset();
     }
   };
+
   const handleSubcommentSubmit = (e, commentIdx) => {
     e.preventDefault();
     const subcomment = subcommentText[commentIdx];
@@ -61,6 +75,15 @@ function ImagesTab({ caseItem, onImageClick }) {
     }
   };
 
+  if (allImages.length === 0) {
+    return (
+      <div className="mb-8">
+        <h3 className="text-xl font-semibold text-gray-800 mb-4">Images</h3>
+        <p className="text-gray-600">No images available for this case.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="mb-8">
       <h3 className="text-xl font-semibold text-gray-800 mb-4">Images</h3>
@@ -74,10 +97,10 @@ function ImagesTab({ caseItem, onImageClick }) {
           </button>
           <div
             className="flex flex-col items-center cursor-pointer"
-            onClick={() => onImageClick(caseItem.images[currentImageIndex].url)}
+            onClick={() => onImageClick(allImages[currentImageIndex].url)}
           >
             <img
-              src={caseItem.images[currentImageIndex].url}
+              src={allImages[currentImageIndex].url}
               alt={`Image ${currentImageIndex + 1}`}
               className="w-96 h-96 object-cover rounded-lg shadow-md"
             />
@@ -85,12 +108,12 @@ function ImagesTab({ caseItem, onImageClick }) {
               Tag:{" "}
               <span
                 className={`${
-                  caseItem.images[currentImageIndex].tag === "Benign"
-                    ? "text-green-600"
-                    : "text-red-600"
+                  allImages[currentImageIndex].tag === "Positive"
+                    ? "text-red-600"
+                    : "text-green-600"
                 }`}
               >
-                {caseItem.images[currentImageIndex].tag}
+                {allImages[currentImageIndex].tag}
               </span>
             </p>
           </div>
@@ -102,7 +125,7 @@ function ImagesTab({ caseItem, onImageClick }) {
           </button>
         </div>
         <p className="text-center mt-2 text-gray-600">
-          Image {currentImageIndex + 1} of {caseItem.images.length}
+          Image {currentImageIndex + 1} of {allImages.length}
         </p>
       </div>
 

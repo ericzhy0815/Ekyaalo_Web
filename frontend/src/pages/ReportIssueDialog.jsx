@@ -1,11 +1,27 @@
 import { useState, useRef } from "react";
+import axios from "axios";
+
+const API_BASE_URL = "https://ekyaalo-backend-70t6.onrender.com";
 
 function ReportIssueDialog({ caseItem, onClose, onSubmit }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedImages, setSelectedImages] = useState([]);
+  const [selectedImages, setSelectedImages] = useState([]); // Store indices as IDs
   const [showImageDropdown, setShowImageDropdown] = useState(false);
+  const [error, setError] = useState(null);
   const textareaRef = useRef(null);
+
+  const allImages = caseItem.issues.flatMap((issue) =>
+    issue.images.flatMap((slide, slideIndex) =>
+      slide.imagelist.map((pair, pairIndex) => ({
+        id: `${slideIndex + 1} - ${pairIndex + 1}`, // Unique ID across issues, slides, and pairs
+        url: pair.first.image, // Use 'first' image URL
+        tag: pair.first.type, // Use 'type' as tag (e.g., Positive/Negative)
+      }))
+    )
+  );
+
+  console.log("All Images:", allImages); // Debugging line
 
   const handleImageToggle = (imageId) => {
     setSelectedImages((prev) =>
@@ -20,7 +36,7 @@ function ReportIssueDialog({ caseItem, onClose, onSubmit }) {
     setDescription(value);
     if (value.endsWith("#")) {
       setShowImageDropdown(true);
-    } else if (showImageDropdown && !value.includes("#")) {
+    } else if (showImageDropdown && !value.endsWith("#")) {
       setShowImageDropdown(false);
     }
   };
@@ -33,30 +49,61 @@ function ReportIssueDialog({ caseItem, onClose, onSubmit }) {
     const newText = `${textBefore}#${imageId}${textAfter}`;
     setDescription(newText);
     setShowImageDropdown(false);
-    // Add imageId to selectedImages if not already present
     setSelectedImages((prev) =>
       prev.includes(imageId) ? prev : [...prev, imageId]
     );
     textarea.focus();
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
+
+    // Extract image IDs from description (e.g., #0-0, #0-1)
+    const imageIdMatches = description.match(/#(\d+-\d+)/g) || [];
+    const descriptionImageIds = imageIdMatches.map((match) =>
+      match.replace("#", "")
+    );
+    const allSelectedImages = [
+      ...new Set([...selectedImages, ...descriptionImageIds]),
+    ].filter((id) => allImages.some((img) => img.id === id));
+
     const report = {
-      caseId: caseItem.id,
+      id: Date.now(), // Temporary ID; backend should assign a unique one
+      status: "Open",
+      createdBy: "Dr. User", // Replace with actual user data if available
+      createdAt: new Date().toISOString(),
       title: title || "Untitled Issue",
       description: description,
-      imageLinks: selectedImages.map(
-        (id) => caseItem.images.find((img) => img.id === id).url
-      ),
+      imageLinks: allSelectedImages
+        .map((id) => allImages.find((img) => img.id === id)?.url || "")
+        .filter(Boolean),
+      comments: [],
     };
-    onSubmit(report);
-    // Reset form after submission
-    setTitle("");
-    setDescription("");
-    setSelectedImages([]);
-    setShowImageDropdown(false);
-    onClose();
+
+    try {
+      const subId = caseItem.submissionIds[0];
+      const response = await axios.post(
+        `${API_BASE_URL}/submission/${subId}/issues`,
+        report,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      onSubmit(response.data);
+      setTitle("");
+      setDescription("");
+      setSelectedImages([]);
+      setShowImageDropdown(false);
+      onClose();
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message || "Failed to report issue";
+      setError(errorMessage);
+      console.error("Error reporting issue:", err);
+    }
   };
 
   return (
@@ -74,6 +121,8 @@ function ReportIssueDialog({ caseItem, onClose, onSubmit }) {
             ×
           </button>
         </div>
+
+        {error && <p className="text-red-500 mb-4">{error}</p>}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Title */}
@@ -106,7 +155,7 @@ function ReportIssueDialog({ caseItem, onClose, onSubmit }) {
             />
             {showImageDropdown && (
               <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-y-auto">
-                {caseItem.images.map((image) => (
+                {allImages.map((image) => (
                   <div
                     key={image.id}
                     onClick={() => handleImageSelect(image.id)}
@@ -125,7 +174,7 @@ function ReportIssueDialog({ caseItem, onClose, onSubmit }) {
               Link Images (Optional)
             </label>
             <div className="space-y-2">
-              {caseItem.images.map((image) => (
+              {allImages.map((image) => (
                 <div key={image.id} className="flex items-center space-x-2">
                   <input
                     type="checkbox"

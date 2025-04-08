@@ -1,60 +1,126 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import { useSelector } from "react-redux";
 
-function IssuesTab({ issues: initialIssues, onOpenIssueDialog }) {
-  const [issues, setIssues] = useState(initialIssues || []);
+const API_BASE_URL = "https://ekyaalo-backend-70t6.onrender.com";
+
+function IssuesTab({ caseItem, onOpenIssueDialog }) {
+  const [issues, setIssues] = useState([]);
   const [issueComments, setIssueComments] = useState({});
   const [filter, setFilter] = useState("All");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // Handle submitting a comment on an issue
-  const handleIssueCommentSubmit = (e, issueId) => {
+  const user = useSelector((state) => state.auth.user || "User");
+  const userLastName = user.lname || "User";
+  const userFirstName = user.fname || "User";
+
+  useEffect(() => {
+    const fetchIssues = async () => {
+      if (!caseItem || !caseItem.submissionIds || !caseItem.submissionIds[0]) {
+        setError("Invalid case data");
+        return;
+      }
+      setLoading(true);
+      try {
+        const subId = caseItem.submissionIds[0];
+        const response = await axios.get(
+          `${API_BASE_URL}/submission/${subId}/issues`
+        );
+        setIssues(response.data || []);
+      } catch (err) {
+        setError(err.response?.data?.message || "Failed to fetch issues");
+        console.error("Error fetching issues:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchIssues();
+  }, [caseItem]);
+
+  const handleIssueCommentSubmit = async (e, issueId) => {
     e.preventDefault();
     const commentText = issueComments[issueId];
     if (commentText) {
       const newComment = {
-        author: "Dr. User",
+        author: userLastName
+          ? "Dr. " + userFirstName + " " + userLastName
+          : "Dr. User", // Replace with actual user data if available
         text: commentText,
         timestamp: new Date().toISOString(),
       };
-      setIssues((prev) =>
-        prev.map((issue) =>
-          issue.id === issueId
-            ? { ...issue, comments: [...issue.comments, newComment] }
-            : issue
-        )
-      );
-      setIssueComments((prev) => ({ ...prev, [issueId]: "" }));
+      try {
+        const subId = caseItem.submissionIds[0];
+        await axios.post(
+          `${API_BASE_URL}/submission/${subId}/issues/${issueId}/comments`,
+          newComment
+        );
+        setIssues((prev) =>
+          prev.map((issue) =>
+            issue.id === issueId
+              ? { ...issue, comments: [...(issue.comments || []), newComment] }
+              : issue
+          )
+        );
+        setIssueComments((prev) => ({ ...prev, [issueId]: "" }));
+      } catch (err) {
+        setError(err.response?.data?.message || "Failed to add comment");
+        console.error("Error submitting comment:", err);
+      }
     }
   };
 
-  // Handle toggling issue status (open/closed)
-  const handleToggleIssueStatus = (issueId) => {
-    setIssues((prev) =>
-      prev.map((issue) =>
-        issue.id === issueId
-          ? { ...issue, status: issue.status === "Open" ? "Closed" : "Open" }
-          : issue
-      )
-    );
+  const handleToggleIssueStatus = async (issueId) => {
+    const issue = issues.find((i) => i.id === issueId);
+    if (!issue) {
+      setError("Issue not found");
+      return;
+    }
+    const newStatus = issue.status === "Open" ? "Closed" : "Open";
+    setLoading(true);
+    try {
+      const subId = caseItem.submissionIds[0];
+      await axios.patch(
+        `${API_BASE_URL}/submission/${subId}/issues/${issueId}/status`,
+        newStatus, // Send plain string as body
+        {
+          headers: {
+            "Content-Type": "text/plain", // Set content type to text/plain
+          },
+        }
+      );
+      setIssues((prev) =>
+        prev.map((issue) =>
+          issue.id === issueId ? { ...issue, status: newStatus } : issue
+        )
+      );
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message || "Failed to update status";
+      setError(errorMessage);
+      console.error("Error toggling issue status:", err, err.response?.data);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Sort issues: Open issues first, then Closed issues
   const sortedIssues = [...issues].sort((a, b) => {
     if (a.status === "Open" && b.status === "Closed") return -1;
     if (a.status === "Closed" && b.status === "Open") return 1;
-    return 0; // Maintain original order within same status
+    return 0;
   });
 
-  // Filter issues based on selected filter
   const filteredIssues = sortedIssues.filter((issue) => {
     if (filter === "All") return true;
     return issue.status === filter;
   });
 
+  if (loading) return <div>Loading issues...</div>;
+  if (error) return <div>Error: {error}</div>;
+
   return (
     <div className="mb-8">
       <h3 className="text-xl font-semibold text-gray-800 mb-4">Issues</h3>
-
-      {/* Header Row with Open Issue Button and Filter Tags */}
       <div className="flex justify-between items-center mb-6">
         <button
           onClick={onOpenIssueDialog}
@@ -95,8 +161,6 @@ function IssuesTab({ issues: initialIssues, onOpenIssueDialog }) {
           </span>
         </div>
       </div>
-
-      {/* Issues List */}
       {filteredIssues.length > 0 ? (
         <div className="space-y-6">
           {filteredIssues.map((issue) => (
@@ -176,10 +240,8 @@ function IssuesTab({ issues: initialIssues, onOpenIssueDialog }) {
                   </div>
                 </div>
               )}
-
-              {/* Comments Section */}
               <div className="mt-4">
-                {issue.comments.length > 0 ? (
+                {issue.comments && issue.comments.length > 0 ? (
                   <div className="space-y-3">
                     {issue.comments.map((comment, idx) => (
                       <div
@@ -231,8 +293,6 @@ function IssuesTab({ issues: initialIssues, onOpenIssueDialog }) {
                     No comments yet.
                   </p>
                 )}
-
-                {/* Comment Form */}
                 <form
                   onSubmit={(e) => handleIssueCommentSubmit(e, issue.id)}
                   className="mt-4 flex space-x-2"
