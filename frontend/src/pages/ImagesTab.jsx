@@ -279,7 +279,7 @@ function ImagesTab({ caseItem, onImageClick }) {
         >
           <option value="">Select Diagnosis</option>
           <option value="Unable to Diagnose">Unable to Diagnose</option>
-          <option value="Malign">Malign</option>
+          <option value="Malign">Malignant</option>
           <option value="Benign">Benign</option>
           <option value="Suspicious">Suspicious</option>
           <option value="Other">Other</option>
