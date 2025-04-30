@@ -14,14 +14,12 @@ function ReportIssueDialog({ caseItem, onClose, onSubmit }) {
   const allImages = caseItem.issues.flatMap((issue) =>
     issue.images.flatMap((slide, slideIndex) =>
       slide.imagelist.map((pair, pairIndex) => ({
-        id: `${slideIndex + 1} - ${pairIndex + 1}`, // Unique ID across issues, slides, and pairs
-        url: pair.first.image, // Use 'first' image URL
-        tag: pair.first.type, // Use 'type' as tag (e.g., Positive/Negative)
+        id: `${slideIndex + 1} - ${pairIndex + 1}`,
+        url: pair.first.image,
+        tag: pair.first.type,
       }))
     )
   );
-
-  console.log("All Images:", allImages); // Debugging line
 
   const handleImageToggle = (imageId) => {
     setSelectedImages((prev) =>

@@ -1,226 +1,344 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  fetchSubmissionImages,
+  updateFinalDiagnosis,
+} from "../redux/casesSlice";
+import DiagnosisDialog from "./DiagnosisDialog";
+import { toast } from "react-toastify";
 
 function ImagesTab({ caseItem, onImageClick }) {
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
-  // Flatten all images from issues into a single array
-  const allImages = caseItem.issues.flatMap((issue) =>
-    issue.images.flatMap((slide) =>
-      slide.imagelist.map((pair) => ({
-        url: pair.first.image, // Use 'first' image as primary (could also use 'second')
-        tag: pair.first.type, // Use 'type' as tag (Positive/Negative)
-        comments: [], // Initialize empty comments (not in schema, managed locally)
-      }))
-    )
+  const dispatch = useDispatch();
+  const submissionIds = caseItem.submissionIds || [];
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState(
+    submissionIds[0]
   );
 
-  const [comments, setComments] = useState(
-    allImages.length > 0 ? allImages.map(() => []) : []
+  const submissionDetails = caseItem.issues.find(
+    (issue) => issue.sub_id === Number(selectedSubmissionId)
   );
-  const [subcommentText, setSubcommentText] = useState({});
 
-  const handleNextImage = () =>
-    setCurrentImageIndex((prev) => (prev + 1) % allImages.length);
-  const handlePrevImage = () =>
-    setCurrentImageIndex((prev) =>
-      prev === 0 ? allImages.length - 1 : prev - 1
-    );
+  const [diagnosis, setDiagnosis] = useState("");
+  const [nextSteps, setNextSteps] = useState("");
+  const [explanation, setExplanation] = useState("");
+  const [isDiagnosisDialogOpen, setIsDiagnosisDialogOpen] = useState(false);
 
-  const handleCommentSubmit = (e) => {
-    e.preventDefault();
-    const commentText = e.target.comment.value;
-    if (commentText) {
-      const newComment = {
-        pathologist: "Dr. User",
-        text: commentText,
-        timestamp: new Date().toISOString(),
-        subcomments: [],
-      };
-      setComments((prev) =>
-        prev.map((imgComments, idx) =>
-          idx === currentImageIndex ? [...imgComments, newComment] : imgComments
-        )
-      );
-      e.target.reset();
+  useEffect(() => {
+    if (submissionDetails?.final_diagnosis) {
+      setDiagnosis(submissionDetails.final_diagnosis.diagnosis || "");
+      setNextSteps(submissionDetails.final_diagnosis.next_steps || "");
+      setExplanation(submissionDetails.final_diagnosis.explanation || "");
+    } else {
+      setDiagnosis("");
+      setNextSteps("");
+      setExplanation("");
+    }
+  }, [selectedSubmissionId, submissionDetails]);
+
+  const imagesBySubmission = useSelector(
+    (state) => state.cases.imagesBySubmission
+  );
+  const images = imagesBySubmission[selectedSubmissionId] || [];
+
+  const [selectedSlideIndex, setSelectedSlideIndex] = useState(0);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (selectedSubmissionId) {
+      dispatch(fetchSubmissionImages(selectedSubmissionId));
+    }
+  }, [dispatch, selectedSubmissionId]);
+
+  useEffect(() => {
+    setSelectedSlideIndex(0);
+    setSelectedImageIndex(0);
+  }, [images]);
+
+  useEffect(() => {
+    const fetchImages = async () => {
+      if (!selectedSubmissionId) return;
+      try {
+        setIsLoading(true);
+        await dispatch(fetchSubmissionImages(selectedSubmissionId)).unwrap();
+      } catch (error) {
+        toast.error("Failed to load images." + error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchImages();
+  }, [dispatch, selectedSubmissionId]);
+
+  const handlePrevImage = () => {
+    const slide = images[selectedSlideIndex];
+    const list = slide?.imagelist || [];
+    setSelectedImageIndex((prev) => (prev - 1 + list.length) % list.length);
+  };
+
+  const handleNextImage = () => {
+    const slide = images[selectedSlideIndex];
+    const list = slide?.imagelist || [];
+    setSelectedImageIndex((prev) => (prev + 1) % list.length);
+  };
+
+  const handleDiagnosisChange = (e) => {
+    const newDiagnosis = e.target.value;
+    setDiagnosis(newDiagnosis);
+    if (newDiagnosis) {
+      setIsDiagnosisDialogOpen(true);
     }
   };
 
-  const handleSubcommentSubmit = (e, commentIdx) => {
-    e.preventDefault();
-    const subcomment = subcommentText[commentIdx];
-    if (subcomment) {
-      const newSubcomment = {
-        pathologist: "Dr. User",
-        text: subcomment,
-        timestamp: new Date().toISOString(),
+  const handleDiagnosisSubmit = async ({ nextSteps, explanation }) => {
+    try {
+      const diagnosisData = {
+        diagnosis,
+        next_steps: nextSteps,
+        explanation,
       };
-      setComments((prev) =>
-        prev.map((imgComments, idx) =>
-          idx === currentImageIndex
-            ? imgComments.map((comment, i) =>
-                i === commentIdx
-                  ? {
-                      ...comment,
-                      subcomments: [
-                        ...(comment.subcomments || []),
-                        newSubcomment,
-                      ],
-                    }
-                  : comment
-              )
-            : imgComments
-        )
-      );
-      setSubcommentText((prev) => ({ ...prev, [commentIdx]: "" }));
+      await dispatch(
+        updateFinalDiagnosis({
+          subId: selectedSubmissionId,
+          diagnosisData,
+        })
+      ).unwrap();
+      setNextSteps(nextSteps);
+      setExplanation(explanation);
+      setIsDiagnosisDialogOpen(false);
+      toast.success(`Diagnosis "${diagnosis}" confirmed with next steps.`);
+    } catch (error) {
+      toast.error(`Failed to update diagnosis: ${error}`);
     }
   };
 
-  if (allImages.length === 0) {
+  const handleDiagnosisDialogClose = () => {
+    if (submissionDetails?.final_diagnosis) {
+      setDiagnosis(submissionDetails.final_diagnosis.diagnosis || "");
+      setNextSteps(submissionDetails.final_diagnosis.next_steps || "");
+      setExplanation(submissionDetails.final_diagnosis.explanation || "");
+    }
+    setIsDiagnosisDialogOpen(false);
+  };
+
+  if (isLoading) {
     return (
-      <div className="mb-8">
-        <h3 className="text-xl font-semibold text-gray-800 mb-4">Images</h3>
-        <p className="text-gray-600">No images available for this case.</p>
+      <div className="mb-8 text-center text-gray-500">
+        <p>Loading submissions...</p>
       </div>
     );
   }
 
+  if (!images.length) {
+    return (
+      <div className="mb-8">
+        <h3 className="text-xl font-semibold text-gray-800 mb-4">Images</h3>
+        <p className="text-gray-600">
+          No images available for this submission.
+        </p>
+      </div>
+    );
+  }
+
+  const currentSlide = images[selectedSlideIndex];
+  const currentImage = currentSlide.imagelist[selectedImageIndex].first;
+
   return (
     <div className="mb-8">
-      <h3 className="text-xl font-semibold text-gray-800 mb-4">Images</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-semibold text-gray-800">Submissions</h3>
+        <select
+          value={selectedSubmissionId}
+          onChange={(e) => {
+            setSelectedSubmissionId(Number(e.target.value));
+            setSelectedSlideIndex(0);
+            setSelectedImageIndex(0);
+          }}
+          className="border rounded p-2 text-sm"
+        >
+          {[...caseItem.issues]
+            .sort((a, b) => {
+              const aHasDiagnosis = !!a.final_diagnosis;
+              const bHasDiagnosis = !!b.final_diagnosis;
+              return aHasDiagnosis - bHasDiagnosis;
+            })
+            .map((issue) => {
+              const status = issue.status || "Pending";
+              let dot = "⚪";
+              if (issue.status === "Issue") {
+                dot = "🔴";
+              } else if (status === "Reviewed") {
+                dot = "🟢";
+              } else {
+                dot = "🟡";
+              }
+
+              return (
+                <option key={issue.sub_id} value={issue.sub_id}>
+                  {dot} Submission {issue.sub_id} – {status}
+                </option>
+              );
+            })}
+        </select>
+      </div>
+
+      {submissionDetails && (
+        <div className="bg-gray-100 p-4 rounded mb-4 text-sm text-gray-700">
+          <p>
+            <strong>Date:</strong> {submissionDetails.date_biopsy}
+          </p>
+          <p>
+            <strong>Specimen:</strong> {submissionDetails.specimen}
+          </p>
+          <p>
+            <strong>Stain:</strong> {submissionDetails.stain}
+          </p>
+          <p>
+            <strong>Symptoms:</strong> {submissionDetails.symptoms}
+          </p>
+          <p>
+            <strong>Procedure:</strong> {submissionDetails.procedure}
+          </p>
+        </div>
+      )}
+
+      <div className="mb-4">
+        <label className="mr-2 text-sm">Slide:</label>
+        <select
+          value={selectedSlideIndex}
+          onChange={(e) => {
+            setSelectedSlideIndex(Number(e.target.value));
+            setSelectedImageIndex(0);
+          }}
+          className="border rounded p-2 text-sm"
+        >
+          {images.map((slide, idx) => (
+            <option key={idx} value={idx}>
+              Slide {idx + 1}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="relative">
         <div className="flex justify-center items-center">
           <button
             onClick={handlePrevImage}
-            className="absolute left-0 p-2 bg-gray-800 text-white rounded-full hover:bg-gray-700 transition-all"
+            className="absolute left-0 p-2 bg-gray-800 text-white rounded-full hover:bg-gray-700"
           >
             ‹
           </button>
           <div
             className="flex flex-col items-center cursor-pointer"
-            onClick={() => onImageClick(allImages[currentImageIndex].url)}
+            onClick={() =>
+              onImageClick(`data:image/jpeg;base64,${currentImage.url}`)
+            }
           >
             <img
-              src={allImages[currentImageIndex].url}
-              alt={`Image ${currentImageIndex + 1}`}
+              src={`data:image/jpeg;base64,${currentImage.url}`}
+              alt={`Slide ${selectedSlideIndex + 1} - Image ${
+                selectedImageIndex + 1
+              }`}
               className="w-96 h-96 object-cover rounded-lg shadow-md"
             />
             <p className="mt-2 text-sm font-medium">
               Tag:{" "}
               <span
-                className={`${
-                  allImages[currentImageIndex].tag === "Positive"
+                className={
+                  currentImage.type === "Positive"
                     ? "text-red-600"
                     : "text-green-600"
-                }`}
+                }
               >
-                {allImages[currentImageIndex].tag}
+                {currentImage.type}
               </span>
             </p>
           </div>
           <button
             onClick={handleNextImage}
-            className="absolute right-0 p-2 bg-gray-800 text-white rounded-full hover:bg-gray-700 transition-all"
+            className="absolute right-0 p-2 bg-gray-800 text-white rounded-full hover:bg-gray-700"
           >
             ›
           </button>
         </div>
-        <p className="text-center mt-2 text-gray-600">
-          Image {currentImageIndex + 1} of {allImages.length}
+        <p className="text-center mt-2 text-gray-600 text-sm">
+          Image {selectedImageIndex + 1} of {currentSlide.imagelist.length}{" "}
+          (Slide {selectedSlideIndex + 1})
         </p>
       </div>
 
-      {/* Comments */}
-      <div className="mt-6">
-        <h4 className="text-lg font-medium text-gray-700 mb-4">Comments</h4>
-        {comments[currentImageIndex].length > 0 ? (
-          <div className="space-y-4">
-            {comments[currentImageIndex].map((comment, idx) => (
-              <div
-                key={idx}
-                className="border-l-4 border-gray-300 pl-4 py-2 bg-gray-50 rounded-r-lg"
+      <div className="mt-8">
+        <h3 className="text-xl font-semibold text-gray-800 mb-2">
+          Final Diagnosis
+        </h3>
+        <select
+          value={diagnosis}
+          onChange={handleDiagnosisChange}
+          className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Select Diagnosis</option>
+          <option value="Unable to Diagnose">Unable to Diagnose</option>
+          <option value="Malign">Malign</option>
+          <option value="Benign">Benign</option>
+          <option value="Suspicious">Suspicious</option>
+          <option value="Other">Other</option>
+        </select>
+        <div className="mt-2 text-sm text-gray-600">
+          {submissionDetails?.final_diagnosis?.diagnosis && (
+            <p>
+              Saved Diagnosis:{" "}
+              <span
+                className={`${
+                  submissionDetails.final_diagnosis.diagnosis === "Benign"
+                    ? "text-green-600"
+                    : "text-red-600"
+                } font-medium`}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-sm font-semibold text-gray-800">
-                      {comment.pathologist}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      • {new Date(comment.timestamp).toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-1 text-gray-500">
-                    <button className="hover:text-blue-600">▲</button>
-                    <span className="text-xs">0</span>
-                    <button className="hover:text-red-600">▼</button>
-                  </div>
-                </div>
-                <p className="mt-1 text-sm text-gray-700">{comment.text}</p>
-                {comment.subcomments && comment.subcomments.length > 0 && (
-                  <div className="ml-4 mt-2 space-y-2">
-                    {comment.subcomments.map((subcomment, subIdx) => (
-                      <div
-                        key={subIdx}
-                        className="border-l-2 border-gray-200 pl-3 py-1 bg-gray-100 rounded-r-md"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <span className="text-xs font-semibold text-gray-800">
-                            {subcomment.pathologist}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            • {new Date(subcomment.timestamp).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-gray-700">
-                          {subcomment.text}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <form
-                  onSubmit={(e) => handleSubcommentSubmit(e, idx)}
-                  className="mt-2 flex space-x-2"
+                {submissionDetails.final_diagnosis.diagnosis}
+              </span>
+            </p>
+          )}
+          {diagnosis &&
+            diagnosis !== submissionDetails?.final_diagnosis?.diagnosis && (
+              <p>
+                Pending Diagnosis:{" "}
+                <span
+                  className={`${
+                    diagnosis === "Benign" ? "text-green-600" : "text-red-600"
+                  } font-medium`}
                 >
-                  <input
-                    type="text"
-                    value={subcommentText[idx] || ""}
-                    onChange={(e) =>
-                      setSubcommentText((prev) => ({
-                        ...prev,
-                        [idx]: e.target.value,
-                      }))
-                    }
-                    placeholder="Reply..."
-                    className="flex-1 p-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  <button
-                    type="submit"
-                    className="px-2 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-all"
-                  >
-                    Reply
-                  </button>
-                </form>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-gray-500 mb-4">No comments yet.</p>
-        )}
-        <form onSubmit={handleCommentSubmit} className="mt-4 flex space-x-2">
-          <input
-            type="text"
-            name="comment"
-            placeholder="Add a comment..."
-            className="flex-1 p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-all"
-          >
-            Post
-          </button>
-        </form>
+                  {diagnosis}
+                </span>
+              </p>
+            )}
+          {(submissionDetails?.final_diagnosis?.next_steps || nextSteps) && (
+            <p>
+              Next Steps:{" "}
+              <span className="font-medium">
+                {submissionDetails?.final_diagnosis?.next_steps || nextSteps}
+              </span>
+            </p>
+          )}
+          {(submissionDetails?.final_diagnosis?.explanation || explanation) && (
+            <p>
+              Explanation:{" "}
+              <span className="font-medium">
+                {submissionDetails?.final_diagnosis?.explanation || explanation}
+              </span>
+            </p>
+          )}
+        </div>
       </div>
+
+      {isDiagnosisDialogOpen && (
+        <DiagnosisDialog
+          isOpen={isDiagnosisDialogOpen}
+          diagnosis={diagnosis}
+          onClose={handleDiagnosisDialogClose}
+          onSubmit={handleDiagnosisSubmit}
+        />
+      )}
     </div>
   );
 }

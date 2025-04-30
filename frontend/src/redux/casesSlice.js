@@ -55,7 +55,6 @@ export const fetchCases = createAsyncThunk(
               new Date().toISOString(),
             reviewed: submission.status === "Reviewed",
             specimen: submission.specimen || "N/A",
-            status: submission.status || "Pending",
             issues: [],
           };
         } else {
@@ -72,9 +71,9 @@ export const fetchCases = createAsyncThunk(
           clinical_history: submission.patient_clinical_history,
           procedure: submission.procedure_performed,
           diagnosis: submission.differential_diagnosis,
-          final_diagnosis: submission.final_diagnosis || null, // Store final_diagnosis
+          final_diagnosis: submission.final_diagnosis || null,
           location: submission.samples_location,
-          status: submission.status,
+          status: submission.status, // Now only here
           time_added: submission.time_added,
           operator_id: submission.operator_id,
           hc_id: submission.hc_id,
@@ -95,6 +94,41 @@ export const fetchCases = createAsyncThunk(
         error.response?.data?.message ||
           error.message ||
           "Failed to fetch cases"
+      );
+    }
+  }
+);
+
+export const fetchSubmissionImages = createAsyncThunk(
+  "cases/fetchSubmissionImages",
+  async (subId, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/submission/images/${subId}`
+      );
+      const slides = response.data.images ?? [];
+
+      // No flattening — keep each slide and its imagelist intact
+      const formattedSlides = slides.map((slide) => ({
+        imagelist: slide.imagelist.map((pair) => ({
+          first: {
+            url: pair.first.image,
+            tag: pair.first.type,
+          },
+          second: pair.second
+            ? {
+                url: pair.second.image,
+                tag: pair.second.type,
+              }
+            : null,
+        })),
+      }));
+
+      return { subId, images: formattedSlides };
+    } catch (error) {
+      console.error("Error fetching submission images:", error);
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch submission images"
       );
     }
   }
@@ -129,8 +163,7 @@ export const updateFinalDiagnosis = createAsyncThunk(
     try {
       const response = await axios.patch(
         `${API_BASE_URL}/submission/${subId}/diagnosis`,
-        diagnosisData,
-        { withCredentials: true }
+        diagnosisData
       );
       return { subId, final_diagnosis: response.data.final_diagnosis };
     } catch (error) {
@@ -146,6 +179,7 @@ const casesSlice = createSlice({
   name: "cases",
   initialState: {
     cases: [],
+    imagesBySubmission: {},
     searchTerm: "",
     loading: false,
     error: null,
@@ -165,7 +199,6 @@ const casesSlice = createSlice({
       state.cases = state.cases.map((c) =>
         c.id === caseId ? { ...c, issues: [...(c.issues || []), issue] } : c
       );
-      console.log("addIssue - Updated cases with new issue for case", caseId);
     },
   },
   extraReducers: (builder) => {
@@ -214,6 +247,19 @@ const casesSlice = createSlice({
         }));
       })
       .addCase(updateFinalDiagnosis.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+      .addCase(fetchSubmissionImages.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchSubmissionImages.fulfilled, (state, action) => {
+        state.loading = false;
+        const { subId, images } = action.payload;
+        state.imagesBySubmission[subId] = images;
+      })
+      .addCase(fetchSubmissionImages.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
       });

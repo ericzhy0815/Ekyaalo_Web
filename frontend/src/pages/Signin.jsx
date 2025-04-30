@@ -34,7 +34,6 @@ function SignIn() {
       );
 
       const data = await response.json();
-      console.log("Response data:", data);
 
       if (!response.ok) {
         throw new Error(data.message || "Sign-in failed");
