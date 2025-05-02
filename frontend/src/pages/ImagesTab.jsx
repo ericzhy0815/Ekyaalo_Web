@@ -142,7 +142,8 @@ function ImagesTab({ caseItem, onImageClick }) {
   }
 
   const currentSlide = images[selectedSlideIndex];
-  const currentImage = currentSlide.imagelist[selectedImageIndex].first;
+  const { first: firstImage, second: secondImage } =
+    currentSlide.imagelist[selectedImageIndex];
 
   return (
     <div className="mb-8">
@@ -232,11 +233,14 @@ function ImagesTab({ caseItem, onImageClick }) {
           <div
             className="flex flex-col items-center cursor-pointer"
             onClick={() =>
-              onImageClick(`data:image/jpeg;base64,${currentImage.url}`)
+              onImageClick(
+                `data:image/jpeg;base64,${firstImage.url}`,
+                `data:image/jpeg;base64,${secondImage.url}`
+              )
             }
           >
             <img
-              src={`data:image/jpeg;base64,${currentImage.url}`}
+              src={`data:image/jpeg;base64,${firstImage.url}`}
               alt={`Slide ${selectedSlideIndex + 1} - Image ${
                 selectedImageIndex + 1
               }`}
@@ -246,12 +250,12 @@ function ImagesTab({ caseItem, onImageClick }) {
               Tag:{" "}
               <span
                 className={
-                  currentImage.type === "Positive"
+                  firstImage.type === "Malignant"
                     ? "text-red-600"
                     : "text-green-600"
                 }
               >
-                {currentImage.type}
+                {firstImage.type}
               </span>
             </p>
           </div>

@@ -40,6 +40,8 @@ function CaseDetail() {
   const [issueCount, setIssueCount] = useState(issues.length);
   const [selectedImageUrl, setSelectedImageUrl] = useState(null);
 
+  const [annotatedImage, setAnnotatedImage] = useState(null);
+
   // Sync local state with Redux on caseItem change
   useEffect(() => {
     if (!caseItem && !loading && !error) {
@@ -76,7 +78,8 @@ function CaseDetail() {
     toast.success(`New issue "${report.title}" opened.`);
   };
 
-  const handleImageClick = (imageUrl) => {
+  const handleImageClick = (imageUrl, annotatedImage) => {
+    setAnnotatedImage(annotatedImage);
     setSelectedImageUrl(imageUrl);
     setIsImageViewerOpen(true);
   };
@@ -151,6 +154,7 @@ function CaseDetail() {
       {isImageViewerOpen && (
         <ImageViewerDialog
           imageUrl={selectedImageUrl}
+          annotatedImage={annotatedImage}
           onClose={() => setIsImageViewerOpen(false)}
         />
       )}
